@@ -1,0 +1,1592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sylvan Media Player - Video & Music</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- JSZip Library for Local Sync / Backup Exporting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- YouTube IFrame Player API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ash: {
+                            950: '#141615',
+                            900: '#1f2120',
+                            800: '#2a2d2c',
+                            700: '#3a3d3c',
+                            600: '#4e5250',
+                            500: '#686e6b',
+                            400: '#8a908d',
+                            300: '#aeb4b0',
+                            200: '#d0d6d2',
+                            100: '#e8efe9'
+                        },
+                        forest: {
+                            950: '#0d1711',
+                            900: '#132219',
+                            800: '#1b2e24',
+                            700: '#233e30',
+                            600: '#2e503f',
+                            500: '#3c6752',
+                            400: '#4f856a',
+                            300: '#68a686',
+                            200: '#8ac9a7',
+                            100: '#bce4ce'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #141615;
+            color: #ffffff;
+            user-select: none;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2120;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #233e30;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3c6752;
+        }
+
+        /* Glassmorphism card */
+        .glass-panel {
+            background: rgba(42, 45, 44, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(79, 133, 106, 0.2);
+        }
+
+        .glass-panel-hover:hover {
+            background: rgba(58, 61, 60, 0.85);
+            border-color: rgba(79, 133, 106, 0.4);
+        }
+
+        /* Animated Equalizer */
+        .eq-bar {
+            width: 3px;
+            background-color: #68a686;
+            border-radius: 2px;
+            animation: bounce 1s infinite ease-in-out alternate;
+        }
+        .eq-bar:nth-child(1) { height: 16px; animation-delay: 0.1s; }
+        .eq-bar:nth-child(2) { height: 26px; animation-delay: 0.3s; }
+        .eq-bar:nth-child(3) { height: 14px; animation-delay: 0.2s; }
+        .eq-bar:nth-child(4) { height: 22px; animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0% { height: 4px; }
+            100% { height: 28px; }
+        }
+
+        .paused .eq-bar {
+            animation-play-state: paused;
+            height: 6px !important;
+        }
+
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #3a3d3c;
+            border-radius: 3px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #68a686;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -4px;
+            box-shadow: 0 0 10px rgba(104, 166, 134, 0.5);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.25);
+            background: #8ac9a7;
+        }
+
+        /* Fullscreen Viewport Mode Adjustments */
+        #playerViewport:fullscreen {
+            width: 100vw !important;
+            height: 100vh !important;
+            background-color: #0d1711;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #playerViewport:-webkit-full-screen {
+            width: 100vw !important;
+            height: 100vh !important;
+            background-color: #0d1711;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden bg-ash-950 text-white">
+
+    <!-- Top Header Layout -->
+    <header class="h-16 border-b border-ash-800 bg-ash-900/90 px-6 flex items-center justify-between z-20 shrink-0">
+        <!-- Logo -->
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-forest-700 to-forest-900 flex items-center justify-center shadow-lg shadow-forest-950/60 border border-forest-500/30">
+                <i class="fa-solid fa-photo-film text-forest-200 text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-wide text-white flex items-center gap-2">
+                    SYLVAN <span class="text-xs font-semibold px-2 py-0.5 rounded bg-forest-800 text-forest-200 border border-forest-600/40">MEDIA</span>
+                </h1>
+                <p class="text-xs text-ash-400">Forest & Ash Universal Video/Music Hub</p>
+            </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="flex-1 max-w-md mx-8 hidden md:block">
+            <div class="relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-ash-400 text-sm"></i>
+                <input type="text" id="searchInput" placeholder="Search videos, tracks, channels..." 
+                    class="w-full bg-ash-800/80 border border-ash-700 rounded-full pl-9 pr-4 py-2 text-sm text-white placeholder-ash-400 focus:outline-none focus:border-forest-500 transition-all">
+            </div>
+        </div>
+
+        <!-- Global Quick Actions -->
+        <div class="flex items-center space-x-3">
+            <button onclick="openModal('addMediaModal')" class="bg-forest-700 hover:bg-forest-600 text-white px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition border border-forest-500/30 shadow-md">
+                <i class="fa-solid fa-plus text-xs"></i>
+                <span>Add Media</span>
+            </button>
+            <button onclick="openModal('addPlaylistModal')" class="bg-ash-800 hover:bg-ash-700 text-white px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition border border-ash-700">
+                <i class="fa-solid fa-folder-plus text-xs"></i>
+                <span class="hidden sm:inline">New Playlist</span>
+            </button>
+            <button onclick="openModal('syncModal')" class="bg-ash-800/90 hover:bg-forest-900 text-forest-200 hover:text-white px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition border border-forest-700/50" title="Offline Backup & Sync">
+                <i class="fa-solid fa-rotate text-xs"></i>
+                <span class="hidden lg:inline">Sync & Export</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="w-64 bg-ash-900/60 border-r border-ash-800/80 flex flex-col shrink-0 hidden md:flex">
+            <!-- Navigation Links -->
+            <div class="p-4 space-y-1">
+                <div class="text-[11px] font-semibold text-ash-400 uppercase px-3 py-2 tracking-wider">Library Filter</div>
+                <button onclick="switchView('all')" id="nav-all" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition bg-forest-800/80 text-white border border-forest-600/30">
+                    <i class="fa-solid fa-icons text-forest-300 w-5 text-center"></i>
+                    <span>All Media</span>
+                    <span id="allCount" class="ml-auto text-xs px-2 py-0.5 rounded-full bg-ash-800 text-ash-300">0</span>
+                </button>
+                <button onclick="switchView('video')" id="nav-video" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-ash-300 hover:text-white hover:bg-ash-800/60 transition">
+                    <i class="fa-solid fa-video text-forest-300 w-5 text-center"></i>
+                    <span>Videos Only</span>
+                    <span id="videoCount" class="ml-auto text-xs px-2 py-0.5 rounded-full bg-ash-800 text-ash-300">0</span>
+                </button>
+                <button onclick="switchView('music')" id="nav-music" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-ash-300 hover:text-white hover:bg-ash-800/60 transition">
+                    <i class="fa-solid fa-music text-forest-300 w-5 text-center"></i>
+                    <span>Music Only</span>
+                    <span id="musicCount" class="ml-auto text-xs px-2 py-0.5 rounded-full bg-ash-800 text-ash-300">0</span>
+                </button>
+                <button onclick="switchView('favorites')" id="nav-favorites" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-ash-300 hover:text-white hover:bg-ash-800/60 transition">
+                    <i class="fa-solid fa-heart text-red-400 w-5 text-center"></i>
+                    <span>Favorites</span>
+                    <span id="favoritesCount" class="ml-auto text-xs px-2 py-0.5 rounded-full bg-ash-800 text-ash-300">0</span>
+                </button>
+            </div>
+
+            <!-- Playlists List -->
+            <div class="flex-1 overflow-y-auto px-4 py-2">
+                <div class="flex items-center justify-between px-3 py-2">
+                    <span class="text-[11px] font-semibold text-ash-400 uppercase tracking-wider">Playlists</span>
+                    <button onclick="openModal('addPlaylistModal')" class="text-ash-400 hover:text-forest-300 text-xs">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+                <div id="sidebarPlaylistsList" class="space-y-1 mt-1">
+                    <!-- Dynamic playlists will be rendered here -->
+                </div>
+            </div>
+
+            <!-- Storage & Sync Info Box -->
+            <div class="p-4 m-3 bg-ash-800/50 rounded-xl border border-ash-700/60 text-xs text-ash-300 space-y-2">
+                <div class="flex items-center justify-between font-medium text-white">
+                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-hard-drive text-forest-300"></i> Local Storage</span>
+                    <span id="storageUsedText" class="text-forest-200 text-[10px]">0 MB</span>
+                </div>
+                <p class="text-[11px] text-ash-400 leading-relaxed">MP4/MP3 files stored locally in browser IndexedDB.</p>
+                <button onclick="openModal('syncModal')" class="w-full py-1.5 bg-forest-800 hover:bg-forest-700 text-forest-100 rounded-lg text-center transition font-semibold text-[11px] border border-forest-600/30">
+                    Backup & Sync Hub
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Dual-Mode Player & Media Library Viewport -->
+        <main class="flex-1 flex flex-col overflow-hidden bg-ash-950">
+            
+            <!-- Video/Audio Viewport Screen (Supports Double-Click Fullscreen) -->
+            <div id="playerViewport" ondblclick="toggleFullscreen()" class="relative group w-full h-72 sm:h-80 md:h-96 bg-ash-900 border-b border-ash-800 flex items-center justify-center overflow-hidden shrink-0 cursor-pointer">
+                
+                <!-- YouTube Dynamic Frame -->
+                <div id="ytPlayerContainer" class="w-full h-full hidden">
+                    <div id="ytPlayer" class="w-full h-full"></div>
+                </div>
+
+                <!-- Native HTML5 Video Element -->
+                <video id="html5VideoPlayer" class="w-full h-full object-contain hidden" crossorigin="anonymous"></video>
+
+                <!-- Music / Audio Artwork Cover Screen -->
+                <div id="audioArtworkContainer" class="flex flex-col items-center justify-center p-6 text-center space-y-4 w-full h-full bg-gradient-to-b from-ash-800 via-forest-950/80 to-ash-900">
+                    <div class="relative group/art">
+                        <img id="activeArtwork" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80" 
+                             class="w-36 h-36 sm:w-44 sm:h-44 rounded-2xl object-cover border-2 border-forest-500/40 shadow-2xl shadow-forest-950/80">
+                        <div id="viewportEqBadge" class="absolute inset-0 bg-ash-950/60 rounded-2xl flex items-center justify-center space-x-1.5 paused hidden">
+                            <div class="eq-bar"></div>
+                            <div class="eq-bar"></div>
+                            <div class="eq-bar"></div>
+                            <div class="eq-bar"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 id="activeTitle" class="text-lg sm:text-xl font-bold text-white truncate max-w-md mx-auto">No Media Selected</h3>
+                        <p id="activeArtist" class="text-xs text-ash-400 mt-1">Select any Video or Song to begin playback</p>
+                    </div>
+                </div>
+
+                <!-- Overlay Media Type Badge -->
+                <div class="absolute top-3 left-3 z-10">
+                    <span id="mediaTypeBadge" class="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-forest-900/90 text-forest-200 border border-forest-600/40 shadow">
+                        MEDIA VIEWER
+                    </span>
+                </div>
+
+                <!-- Dedicated Fullscreen Viewport Overlay Button -->
+                <div class="absolute top-3 right-3 z-10 opacity-80 group-hover:opacity-100 transition-opacity">
+                    <button onclick="toggleFullscreen(); event.stopPropagation();" id="viewportFullscreenBtn" class="bg-ash-950/80 hover:bg-forest-800 text-forest-200 hover:text-white px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2 border border-forest-600/50 shadow-xl backdrop-blur-md transition">
+                        <i class="fa-solid fa-expand text-xs" id="viewportFsIcon"></i>
+                        <span id="viewportFsText" class="hidden sm:inline">Fullscreen</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Library View Header & Controls -->
+            <div class="px-6 py-3 border-b border-ash-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-ash-900/40 shrink-0">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span id="viewTypeTag" class="text-[10px] uppercase px-2 py-0.5 rounded bg-forest-900/80 text-forest-300 font-semibold border border-forest-700/40">Library</span>
+                        <span id="viewMediaCount" class="text-xs text-ash-400">0 items</span>
+                    </div>
+                    <h2 id="viewTitle" class="text-xl font-bold text-white">All Media</h2>
+                </div>
+
+                <div class="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+                    <button onclick="playAllCurrentView()" class="bg-forest-700 hover:bg-forest-600 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition">
+                        <i class="fa-solid fa-play"></i>
+                        <span>Play All</span>
+                    </button>
+                    <button onclick="shuffleAndPlayView()" class="bg-ash-800 hover:bg-ash-700 text-white p-2 rounded-xl text-xs transition" title="Shuffle View">
+                        <i class="fa-solid fa-shuffle text-forest-300"></i>
+                    </button>
+                    <button id="deletePlaylistBtn" onclick="deleteCurrentPlaylist()" class="hidden bg-red-900/40 hover:bg-red-800/60 text-red-300 border border-red-700/40 p-2 rounded-xl text-xs transition" title="Delete Playlist">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dynamic Media List Container -->
+            <div class="flex-1 overflow-y-auto p-6">
+                
+                <div id="mediaListContainer" class="space-y-2">
+                    <!-- Dynamic songs and videos will be rendered here -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="hidden flex flex-col items-center justify-center py-12 text-center">
+                    <div class="w-14 h-14 rounded-2xl bg-ash-800/60 flex items-center justify-center text-forest-300 text-2xl mb-3 border border-ash-700/50">
+                        <i class="fa-solid fa-photo-film"></i>
+                    </div>
+                    <h3 class="text-base font-semibold text-white">No media found</h3>
+                    <p class="text-xs text-ash-400 max-w-sm mt-1 mb-5">Your library in this view is empty. Import MP4 videos, MP3 songs or YouTube links!</p>
+                    <div class="flex gap-3">
+                        <button onclick="openModal('addMediaModal')" class="bg-forest-700 hover:bg-forest-600 text-white px-4 py-2 rounded-lg text-xs font-semibold transition">
+                            Add Media
+                        </button>
+                        <button onclick="loadSampleMedia()" class="bg-ash-800 hover:bg-ash-700 text-white px-4 py-2 rounded-lg text-xs font-semibold transition border border-ash-700">
+                            Load Demo Collection
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Universal Bottom Controls Dock -->
+    <footer class="h-24 bg-ash-900 border-t border-ash-800 px-4 sm:px-6 flex items-center justify-between z-30 shrink-0 shadow-2xl">
+        
+        <!-- Track / Video Info Display -->
+        <div class="flex items-center space-x-3 w-1/4 min-w-[200px]">
+            <img id="dockCover" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&auto=format&fit=crop&q=80" 
+                 class="w-12 h-12 rounded-lg object-cover border border-ash-700 shrink-0">
+            <div class="overflow-hidden pr-2">
+                <h4 id="dockTitle" class="text-xs sm:text-sm font-semibold text-white truncate">No Media Selected</h4>
+                <p id="dockArtist" class="text-[11px] text-ash-400 truncate">Select item to play</p>
+                <span id="dockSourceBadge" class="inline-block text-[9px] px-1.5 py-0.2 rounded bg-ash-800 text-forest-300 mt-0.5 font-mono">IDLE</span>
+            </div>
+            <button id="favoriteCurrentBtn" onclick="toggleFavoriteCurrent()" class="text-ash-400 hover:text-red-400 text-xs p-1 transition hidden sm:block">
+                <i class="fa-regular fa-heart"></i>
+            </button>
+        </div>
+
+        <!-- Player Buttons & Time Scrub Bar -->
+        <div class="flex flex-col items-center w-2/4 max-w-xl px-2">
+            <div class="flex items-center space-x-4 mb-1.5">
+                <button id="shuffleBtn" onclick="toggleShuffle()" class="text-ash-400 hover:text-white transition text-xs" title="Shuffle">
+                    <i class="fa-solid fa-shuffle"></i>
+                </button>
+                <button onclick="playPrevTrack()" class="text-ash-300 hover:text-white transition text-sm">
+                    <i class="fa-solid fa-backward-step"></i>
+                </button>
+                <button id="playPauseBtn" onclick="togglePlayPause()" class="w-10 h-10 rounded-full bg-forest-600 hover:bg-forest-500 text-white font-bold flex items-center justify-center transition shadow-lg shadow-forest-950/50">
+                    <i class="fa-solid fa-play text-sm ml-0.5"></i>
+                </button>
+                <button onclick="playNextTrack()" class="text-ash-300 hover:text-white transition text-sm">
+                    <i class="fa-solid fa-forward-step"></i>
+                </button>
+                <button id="repeatBtn" onclick="toggleRepeat()" class="text-ash-400 hover:text-white transition text-xs" title="Repeat">
+                    <i class="fa-solid fa-repeat"></i>
+                </button>
+            </div>
+
+            <!-- Time Slider -->
+            <div class="w-full flex items-center space-x-3 text-[10px] font-mono text-ash-400">
+                <span id="currentTimeDisplay">0:00</span>
+                <input type="range" id="progressBar" min="0" max="100" value="0" class="flex-1">
+                <span id="durationDisplay">0:00</span>
+            </div>
+        </div>
+
+        <!-- Volume, Playback Speed, Picture-in-Picture & Fullscreen Options -->
+        <div class="flex items-center justify-end space-x-2 sm:space-x-3 w-1/4 min-w-[170px]">
+            
+            <!-- Speed Selector -->
+            <select id="speedSelect" onchange="changePlaybackRate(this.value)" class="hidden sm:block bg-ash-800 border border-ash-700 text-ash-300 text-[10px] font-mono rounded-lg px-1.5 py-1 focus:outline-none focus:border-forest-500">
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1.0x</option>
+                <option value="1.25">1.25x</option>
+                <option value="1.5">1.5x</option>
+                <option value="2">2.0x</option>
+            </select>
+
+            <!-- PiP Button -->
+            <button onclick="togglePictureInPicture()" class="hidden md:block text-ash-400 hover:text-forest-300 text-xs p-1.5 transition" title="Picture-in-Picture">
+                <i class="fa-solid fa-window-restore"></i>
+            </button>
+
+            <!-- Volume -->
+            <div class="flex items-center space-x-2">
+                <button id="muteBtn" onclick="toggleMute()" class="text-ash-300 hover:text-white transition text-xs">
+                    <i class="fa-solid fa-volume-high"></i>
+                </button>
+                <input type="range" id="volumeBar" min="0" max="1" step="0.01" value="0.8" class="w-16 sm:w-20">
+            </div>
+
+            <!-- PROMINENT DEDICATED FULLSCREEN BUTTON -->
+            <button onclick="toggleFullscreen()" id="dockFullscreenBtn" class="bg-forest-800/90 hover:bg-forest-600 text-white border border-forest-600/60 p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-lg" title="Toggle Fullscreen Video (F)">
+                <i class="fa-solid fa-expand text-xs" id="dockFsIcon"></i>
+                <span class="hidden xl:inline text-[11px]" id="dockFsText">Fullscreen</span>
+            </button>
+        </div>
+    </footer>
+
+    <!-- HTML5 Native Audio Engine -->
+    <audio id="audioEngine" class="hidden" preload="auto"></audio>
+
+    <!-- MODAL 1: ADD MEDIA (VIDEO / MUSIC) -->
+    <div id="addMediaModal" class="fixed inset-0 bg-ash-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-ash-900 border border-ash-700/80 w-full max-w-lg rounded-2xl p-6 shadow-2xl relative">
+            <button onclick="closeModal('addMediaModal')" class="absolute top-4 right-4 text-ash-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-xl font-bold text-white mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-circle-plus text-forest-300"></i> Add Video or Music
+            </h3>
+            <p class="text-xs text-ash-400 mb-5">Import YouTube videos/music or upload MP4 / MP3 local files.</p>
+
+            <!-- Choice Tabs -->
+            <div class="flex border-b border-ash-800 mb-5">
+                <button id="tabFileBtn" onclick="switchAddTab('file')" class="py-2 px-4 text-xs font-semibold border-b-2 border-forest-400 text-forest-300">
+                    <i class="fa-solid fa-file-video mr-1.5"></i> File Upload (MP4 / MP3)
+                </button>
+                <button id="tabLinkBtn" onclick="switchAddTab('link')" class="py-2 px-4 text-xs font-semibold border-b-2 border-transparent text-ash-400 hover:text-white">
+                    <i class="fa-brands fa-youtube mr-1.5"></i> YouTube Link
+                </button>
+            </div>
+
+            <!-- Content: File Upload -->
+            <div id="tabFileContent" class="space-y-4">
+                <div class="border-2 border-dashed border-ash-700 hover:border-forest-400 rounded-xl p-6 text-center cursor-pointer transition bg-ash-800/30" onclick="document.getElementById('mediaFileInput').click()">
+                    <i class="fa-solid fa-cloud-arrow-up text-3xl text-forest-300 mb-2"></i>
+                    <p class="text-xs font-semibold text-white">Click to select MP4, WEBM, MP3, WAV or M4A file</p>
+                    <p class="text-[11px] text-ash-400 mt-1">Files are stored securely offline in IndexedDB</p>
+                    <input type="file" id="mediaFileInput" accept="video/*,audio/*" class="hidden" onchange="handleFileSelect(event)">
+                </div>
+                <div id="fileSelectedInfo" class="hidden p-3 bg-ash-800 rounded-lg flex items-center justify-between text-xs border border-ash-700">
+                    <span id="fileNameText" class="truncate text-forest-200">selected_media.mp4</span>
+                    <span id="fileSizeText" class="text-ash-400 shrink-0">0 MB</span>
+                </div>
+            </div>
+
+            <!-- Content: YouTube / Web Link -->
+            <div id="tabLinkContent" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-xs font-semibold text-ash-300 mb-1">YouTube Link / Video URL</label>
+                    <input type="url" id="linkInput" placeholder="https://www.youtube.com/watch?v=..." 
+                        class="w-full bg-ash-800 border border-ash-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-forest-500">
+                    <p class="text-[11px] text-ash-400 mt-1">Automatically extracts video title, channel, and HD thumbnail.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-ash-300 mb-1">Media Type</label>
+                    <select id="linkTypeSelect" class="w-full bg-ash-800 border border-ash-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-forest-500">
+                        <option value="video">Video</option>
+                        <option value="music">Music / Audio</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button onclick="closeModal('addMediaModal')" class="px-4 py-2 bg-ash-800 hover:bg-ash-700 text-white text-xs rounded-lg">Cancel</button>
+                <button id="saveAddMediaBtn" onclick="processAddMedia()" class="px-5 py-2 bg-forest-700 hover:bg-forest-600 text-white text-xs font-semibold rounded-lg shadow flex items-center gap-2">
+                    <i class="fa-solid fa-check text-xs"></i> Add to Library
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: ADD PLAYLIST -->
+    <div id="addPlaylistModal" class="fixed inset-0 bg-ash-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-ash-900 border border-ash-700/80 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+            <button onclick="closeModal('addPlaylistModal')" class="absolute top-4 right-4 text-ash-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-xl font-bold text-white mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-folder-plus text-forest-300"></i> Create New Playlist
+            </h3>
+            <p class="text-xs text-ash-400 mb-5">Group videos and music into custom collections.</p>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-ash-300 mb-1">Playlist Name *</label>
+                    <input type="text" id="playlistNameInput" placeholder="e.g. Favorite Videos / Chill Sounds" 
+                        class="w-full bg-ash-800 border border-ash-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-forest-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-ash-300 mb-1">Description</label>
+                    <textarea id="playlistDescInput" rows="3" placeholder="Add optional details..." 
+                        class="w-full bg-ash-800 border border-ash-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-forest-500"></textarea>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button onclick="closeModal('addPlaylistModal')" class="px-4 py-2 bg-ash-800 hover:bg-ash-700 text-white text-xs rounded-lg">Cancel</button>
+                <button onclick="saveNewPlaylist()" class="px-5 py-2 bg-forest-700 hover:bg-forest-600 text-white text-xs font-semibold rounded-lg">Create Playlist</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: EDIT MEDIA METADATA -->
+    <div id="editMediaModal" class="fixed inset-0 bg-ash-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-ash-900 border border-ash-700/80 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+            <button onclick="closeModal('editMediaModal')" class="absolute top-4 right-4 text-ash-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-xl font-bold text-white mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-pen-to-square text-forest-300"></i> Edit Item Details
+            </h3>
+            <p class="text-xs text-ash-400 mb-5">Customize media title, channel/artist, and thumbnail.</p>
+
+            <input type="hidden" id="editMediaId">
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-ash-300 mb-1">Title</label>
+                    <input type="text" id="editMediaTitle" class="w-full bg-ash-800 border border-ash-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-forest-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-ash-300 mb-1">Artist / Channel</label>
+                    <input type="text" id="editMediaArtist" class="w-full bg-ash-800 border border-ash-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-forest-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-ash-300 mb-1">Media Type</label>
+                    <select id="editMediaType" class="w-full bg-ash-800 border border-ash-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-forest-500">
+                        <option value="video">Video</option>
+                        <option value="music">Music</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-ash-300 mb-1">Thumbnail Cover URL</label>
+                    <input type="url" id="editMediaCover" class="w-full bg-ash-800 border border-ash-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-forest-500">
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button onclick="closeModal('editMediaModal')" class="px-4 py-2 bg-ash-800 hover:bg-ash-700 text-white text-xs rounded-lg">Cancel</button>
+                <button onclick="saveMediaEdit()" class="px-5 py-2 bg-forest-700 hover:bg-forest-600 text-white text-xs font-semibold rounded-lg">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4: SYNC & EXPORT BACKUP -->
+    <div id="syncModal" class="fixed inset-0 bg-ash-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-ash-900 border border-ash-700/80 w-full max-w-lg rounded-2xl p-6 shadow-2xl relative">
+            <button onclick="closeModal('syncModal')" class="absolute top-4 right-4 text-ash-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-xl font-bold text-white mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-rotate text-forest-300"></i> Sync & Offline Media Backup
+            </h3>
+            <p class="text-xs text-ash-400 mb-5">Backup your full video & music library or sync existing offline files.</p>
+
+            <div class="space-y-4">
+                <div class="p-4 bg-ash-800/40 rounded-xl border border-ash-700/60 text-xs leading-relaxed space-y-2">
+                    <div class="flex items-center gap-2 text-forest-200 font-semibold">
+                        <i class="fa-solid fa-folder-closed"></i> "MUSIC FILES" & "VIDEO FILES" Sync
+                    </div>
+                    <p class="text-ash-300">Export packages metadata, links, and binary file attachments into a zip archive for complete offline restoration anytime.</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button onclick="exportLibraryBackup()" class="p-4 bg-forest-800/80 hover:bg-forest-700 border border-forest-600/40 rounded-xl flex flex-col items-center justify-center text-center transition">
+                        <i class="fa-solid fa-download text-2xl text-forest-200 mb-2"></i>
+                        <span class="font-semibold text-xs text-white">Export Backup Archive</span>
+                        <span class="text-[10px] text-forest-200 mt-1">Download ZIP/JSON Bundle</span>
+                    </button>
+
+                    <label class="p-4 bg-ash-800 hover:bg-ash-700 border border-ash-700 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer transition">
+                        <i class="fa-solid fa-file-import text-2xl text-forest-300 mb-2"></i>
+                        <span class="font-semibold text-xs text-white">Import / Restore Sync</span>
+                        <span class="text-[10px] text-ash-400 mt-1">Restore Backup Archive</span>
+                        <input type="file" accept=".json,.zip" class="hidden" onchange="importLibraryBackup(event)">
+                    </label>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeModal('syncModal')" class="px-4 py-2 bg-ash-800 hover:bg-ash-700 text-white text-xs rounded-lg">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* CONSTANTS & GLOBAL STATE */
+        const DB_NAME = 'SylvanMediaDB';
+        const DB_VERSION = 1;
+        let db = null;
+
+        let mediaList = [];
+        let playlists = [];
+        let currentView = 'all'; // 'all', 'video', 'music', 'favorites', or playlist ID
+        let currentTrackIndex = -1;
+        let activeQueue = [];
+        let isPlaying = false;
+        let isShuffle = false;
+        let repeatMode = 0; // 0: off, 1: item, 2: view
+        let selectedFileBlob = null;
+
+        // Player Engines
+        let ytPlayer = null;
+        let isYTReady = false;
+        const html5Video = document.getElementById('html5VideoPlayer');
+        const audioEngine = document.getElementById('audioEngine');
+
+        /* INDEXED DB SETUP */
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('media')) {
+                        db.createObjectStore('media', { keyPath: 'id' });
+                    }
+                    if (!db.objectStoreNames.contains('playlists')) {
+                        db.createObjectStore('playlists', { keyPath: 'id' });
+                    }
+                };
+                request.onsuccess = (e) => {
+                    db = e.target.result;
+                    resolve(db);
+                };
+                request.onerror = (e) => reject(e);
+            });
+        }
+
+        function saveMediaToDB(item) {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction('media', 'readwrite');
+                const store = tx.objectStore('media');
+                store.put(item);
+                tx.oncomplete = () => resolve();
+                tx.onerror = (e) => reject(e);
+            });
+        }
+
+        function getAllMediaFromDB() {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction('media', 'readonly');
+                const store = tx.objectStore('media');
+                const req = store.getAll();
+                req.onsuccess = () => resolve(req.result || []);
+                req.onerror = (e) => reject(e);
+            });
+        }
+
+        function deleteMediaFromDB(id) {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction('media', 'readwrite');
+                const store = tx.objectStore('media');
+                store.delete(id);
+                tx.oncomplete = () => resolve();
+                tx.onerror = (e) => reject(e);
+            });
+        }
+
+        function savePlaylistsToDB(list) {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction('playlists', 'readwrite');
+                const store = tx.objectStore('playlists');
+                store.clear();
+                list.forEach(p => store.put(p));
+                tx.oncomplete = () => resolve();
+                tx.onerror = (e) => reject(e);
+            });
+        }
+
+        function getAllPlaylistsFromDB() {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction('playlists', 'readonly');
+                const store = tx.objectStore('playlists');
+                const req = store.getAll();
+                req.onsuccess = () => resolve(req.result || []);
+                req.onerror = (e) => reject(e);
+            });
+        }
+
+        /* YOUTUBE IFRAME API CALLBACK */
+        function onYouTubeIframeAPIReady() {
+            ytPlayer = new YT.Player('ytPlayer', {
+                height: '100%',
+                width: '100%',
+                playerVars: { 'autoplay': 1, 'controls': 0, 'modestbranding': 1 },
+                events: {
+                    'onReady': () => { isYTReady = true; },
+                    'onStateChange': onYTPlayerStateChange
+                }
+            });
+        }
+
+        function onYTPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.PLAYING) {
+                isPlaying = true;
+                updatePlayPauseUI();
+            } else if (event.data === YT.PlayerState.PAUSED) {
+                isPlaying = false;
+                updatePlayPauseUI();
+            } else if (event.data === YT.PlayerState.ENDED) {
+                if (repeatMode === 1) {
+                    ytPlayer.seekTo(0);
+                    ytPlayer.playVideo();
+                } else {
+                    playNextTrack();
+                }
+            }
+        }
+
+        /* APP INITIALIZATION */
+        window.addEventListener('load', async () => {
+            try {
+                await initDB();
+                mediaList = await getAllMediaFromDB();
+                playlists = await getAllPlaylistsFromDB();
+
+                if (mediaList.length === 0) {
+                    await loadSampleMedia();
+                }
+
+                renderSidebar();
+                renderView();
+                updateStorageUsageDisplay();
+                setupPlaybackControls();
+                setupKeyboardShortcuts();
+                setupFullscreenListeners();
+            } catch (err) {
+                console.error("Init Error:", err);
+            }
+        });
+
+        /* DEMO SAMPLE MEDIA */
+        async function loadSampleMedia() {
+            const samples = [
+                {
+                    id: 'sample-yt-vid',
+                    title: 'Sylvan Nature Forest Relaxation Video',
+                    artist: 'Nature Hub',
+                    type: 'video',
+                    url: 'https://www.youtube.com/watch?v=1L33g53z4eM',
+                    youtubeId: '1L33g53z4eM',
+                    cover: 'https://img.youtube.com/vi/1L33g53z4eM/maxresdefault.jpg',
+                    isFavorite: true,
+                    duration: '3:45',
+                    addedAt: Date.now()
+                },
+                {
+                    id: 'sample-audio-1',
+                    title: 'Forest Ambient Beats',
+                    artist: 'Sylvan Echo',
+                    type: 'music',
+                    url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3',
+                    cover: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=400&auto=format&fit=crop&q=80',
+                    isFavorite: false,
+                    duration: '2:15',
+                    addedAt: Date.now() + 1
+                }
+            ];
+
+            for (const item of samples) {
+                mediaList.push(item);
+                await saveMediaToDB(item);
+            }
+
+            if (playlists.length === 0) {
+                playlists.push({
+                    id: 'pl-1',
+                    name: 'Ash & Forest Chill',
+                    description: 'Relaxing background music and nature clips',
+                    itemIds: ['sample-yt-vid', 'sample-audio-1']
+                });
+                await savePlaylistsToDB(playlists);
+            }
+
+            renderSidebar();
+            renderView();
+        }
+
+        /* NAVIGATION & SIDEBAR */
+        function switchView(view) {
+            currentView = view;
+            renderSidebar();
+            renderView();
+        }
+
+        function renderSidebar() {
+            document.getElementById('allCount').innerText = mediaList.length;
+            document.getElementById('videoCount').innerText = mediaList.filter(m => m.type === 'video').length;
+            document.getElementById('musicCount').innerText = mediaList.filter(m => m.type === 'music').length;
+            document.getElementById('favoritesCount').innerText = mediaList.filter(m => m.isFavorite).length;
+
+            const views = ['all', 'video', 'music', 'favorites'];
+            views.forEach(v => {
+                const el = document.getElementById(`nav-${v}`);
+                if (!el) return;
+                if (currentView === v) {
+                    el.className = "w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition bg-forest-800/80 text-white border border-forest-600/30";
+                } else {
+                    el.className = "w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium text-ash-300 hover:text-white hover:bg-ash-800/60 transition";
+                }
+            });
+
+            const plContainer = document.getElementById('sidebarPlaylistsList');
+            plContainer.innerHTML = playlists.map(pl => {
+                const isActive = currentView === pl.id;
+                return `
+                    <button onclick="switchView('${pl.id}')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${isActive ? 'bg-forest-700/80 text-white border border-forest-500/30' : 'text-ash-300 hover:text-white hover:bg-ash-800/40'}">
+                        <span class="truncate flex items-center gap-2">
+                            <i class="fa-solid fa-list-ul text-forest-300 text-[10px]"></i>
+                            ${escapeHtml(pl.name)}
+                        </span>
+                        <span class="text-[10px] px-1.5 py-0.2 rounded bg-ash-800 text-ash-400">${pl.itemIds.length}</span>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function getFilteredMedia() {
+            let list = [];
+            if (currentView === 'all') list = [...mediaList];
+            else if (currentView === 'video') list = mediaList.filter(m => m.type === 'video');
+            else if (currentView === 'music') list = mediaList.filter(m => m.type === 'music');
+            else if (currentView === 'favorites') list = mediaList.filter(m => m.isFavorite);
+            else {
+                const pl = playlists.find(p => p.id === currentView);
+                if (pl) list = mediaList.filter(m => pl.itemIds.includes(m.id));
+            }
+
+            const search = document.getElementById('searchInput').value.toLowerCase().trim();
+            if (search) {
+                list = list.filter(m => 
+                    m.title.toLowerCase().includes(search) || 
+                    (m.artist && m.artist.toLowerCase().includes(search))
+                );
+            }
+            return list;
+        }
+
+        function renderView() {
+            const items = getFilteredMedia();
+            activeQueue = items;
+            const container = document.getElementById('mediaListContainer');
+            const emptyState = document.getElementById('emptyState');
+            const deletePlBtn = document.getElementById('deletePlaylistBtn');
+
+            if (currentView === 'all') {
+                document.getElementById('viewTypeTag').innerText = "LIBRARY";
+                document.getElementById('viewTitle').innerText = "All Media";
+                deletePlBtn.classList.add('hidden');
+            } else if (currentView === 'video') {
+                document.getElementById('viewTypeTag').innerText = "CATEGORY";
+                document.getElementById('viewTitle').innerText = "Videos Only";
+                deletePlBtn.classList.add('hidden');
+            } else if (currentView === 'music') {
+                document.getElementById('viewTypeTag').innerText = "CATEGORY";
+                document.getElementById('viewTitle').innerText = "Music Only";
+                deletePlBtn.classList.add('hidden');
+            } else if (currentView === 'favorites') {
+                document.getElementById('viewTypeTag').innerText = "COLLECTION";
+                document.getElementById('viewTitle').innerText = "Favorites";
+                deletePlBtn.classList.add('hidden');
+            } else {
+                const pl = playlists.find(p => p.id === currentView);
+                document.getElementById('viewTypeTag').innerText = "PLAYLIST";
+                document.getElementById('viewTitle').innerText = pl ? pl.name : "Playlist";
+                deletePlBtn.classList.remove('hidden');
+            }
+
+            document.getElementById('viewMediaCount').innerText = `${items.length} item${items.length !== 1 ? 's' : ''}`;
+
+            if (items.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            container.innerHTML = items.map((item, index) => {
+                const isCurrentPlaying = activeQueue[currentTrackIndex]?.id === item.id;
+                return `
+                    <div class="glass-panel glass-panel-hover p-3 rounded-xl flex items-center justify-between transition group border ${isCurrentPlaying ? 'border-forest-500 bg-ash-800/80' : 'border-ash-800'}">
+                        <!-- Play Action -->
+                        <div class="flex items-center space-x-3 overflow-hidden flex-1 cursor-pointer" onclick="playMediaFromQueue(${index})">
+                            <div class="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden border border-ash-700">
+                                <img src="${item.cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150'}" class="w-full h-full object-cover">
+                                <div class="absolute inset-0 bg-ash-950/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                                    <i class="fa-solid ${isCurrentPlaying && isPlaying ? 'fa-pause' : 'fa-play'} text-white text-xs"></i>
+                                </div>
+                            </div>
+                            <div class="overflow-hidden pr-2">
+                                <div class="flex items-center gap-2">
+                                    <h4 class="text-xs sm:text-sm font-semibold truncate ${isCurrentPlaying ? 'text-forest-200' : 'text-white'}">${escapeHtml(item.title)}</h4>
+                                    <span class="text-[9px] px-1.5 py-0.2 rounded ${item.type === 'video' ? 'bg-forest-900 text-forest-200' : 'bg-ash-800 text-ash-300'} uppercase font-bold shrink-0">
+                                        <i class="fa-solid ${item.type === 'video' ? 'fa-video' : 'fa-music'} mr-1 text-[8px]"></i>${item.type}
+                                    </span>
+                                </div>
+                                <p class="text-[11px] text-ash-400 truncate">${escapeHtml(item.artist || 'Unknown Artist')}</p>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex items-center space-x-3 shrink-0 text-xs">
+                            <span class="text-ash-400 text-xs font-mono hidden sm:inline">${item.duration || '--:--'}</span>
+                            
+                            <button onclick="toggleFavorite('${item.id}')" class="p-1.5 text-ash-400 hover:text-red-400 transition" title="Favorite">
+                                <i class="fa-${item.isFavorite ? 'solid text-red-400' : 'regular'} fa-heart"></i>
+                            </button>
+
+                            <!-- Add to Playlist dropdown -->
+                            <div class="relative group/dropdown">
+                                <button class="p-1.5 text-ash-400 hover:text-forest-300 transition" title="Add to playlist">
+                                    <i class="fa-solid fa-folder-plus"></i>
+                                </button>
+                                <div class="absolute right-0 top-full mt-1 w-44 bg-ash-900 border border-ash-700 rounded-lg shadow-2xl hidden group-hover/dropdown:block z-30 py-1">
+                                    <div class="text-[10px] text-ash-400 uppercase font-semibold px-3 py-1 border-b border-ash-800">Add to Playlist</div>
+                                    ${playlists.map(p => `
+                                        <button onclick="addMediaToPlaylist('${item.id}', '${p.id}')" class="w-full text-left px-3 py-1.5 text-xs text-ash-200 hover:bg-forest-700 hover:text-white truncate">
+                                            ${escapeHtml(p.name)}
+                                        </button>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <button onclick="openEditModal('${item.id}')" class="p-1.5 text-ash-400 hover:text-white transition" title="Edit Item">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+
+                            <button onclick="deleteMedia('${item.id}')" class="p-1.5 text-ash-400 hover:text-red-400 transition" title="Delete Item">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        document.getElementById('searchInput').addEventListener('input', renderView);
+
+        /* MEDIA PLAYBACK ENGINE SWITCHING & CONTROL */
+        function stopAllEngines() {
+            if (ytPlayer && typeof ytPlayer.stopVideo === 'function') ytPlayer.stopVideo();
+            html5Video.pause();
+            html5Video.src = '';
+            audioEngine.pause();
+            audioEngine.src = '';
+
+            document.getElementById('ytPlayerContainer').classList.add('hidden');
+            html5Video.classList.add('hidden');
+            document.getElementById('audioArtworkContainer').classList.add('hidden');
+        }
+
+        async function loadAndPlayMedia(item) {
+            if (!item) return;
+
+            stopAllEngines();
+
+            document.getElementById('mediaTypeBadge').innerText = item.type.toUpperCase();
+
+            if (item.youtubeId) {
+                // Play YouTube Video or Audio
+                document.getElementById('ytPlayerContainer').classList.remove('hidden');
+                if (isYTReady && ytPlayer) {
+                    ytPlayer.loadVideoById(item.youtubeId);
+                }
+            } else if (item.type === 'video') {
+                // Play HTML5 Video File
+                html5Video.classList.remove('hidden');
+                let src = item.url;
+                if (item.blob) src = URL.createObjectURL(item.blob);
+                html5Video.src = src;
+                html5Video.play();
+            } else {
+                // Play Music / Audio File
+                document.getElementById('audioArtworkContainer').classList.remove('hidden');
+                let src = item.url;
+                if (item.blob) src = URL.createObjectURL(item.blob);
+                audioEngine.src = src;
+                audioEngine.play();
+            }
+
+            isPlaying = true;
+            updateUI(item);
+        }
+
+        function updateUI(item) {
+            document.getElementById('activeTitle').innerText = item.title;
+            document.getElementById('activeArtist').innerText = item.artist || 'Unknown Artist';
+            document.getElementById('activeArtwork').src = item.cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400';
+
+            document.getElementById('dockTitle').innerText = item.title;
+            document.getElementById('dockArtist').innerText = item.artist || 'Unknown Artist';
+            document.getElementById('dockCover').src = item.cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150';
+            document.getElementById('dockSourceBadge').innerText = item.youtubeId ? 'YOUTUBE' : (item.blob ? 'LOCAL FILE' : 'STREAM LINK');
+
+            updatePlayPauseUI();
+            renderView();
+        }
+
+        function updatePlayPauseUI() {
+            const btn = document.getElementById('playPauseBtn');
+            const eq = document.getElementById('viewportEqBadge');
+
+            if (isPlaying) {
+                btn.innerHTML = '<i class="fa-solid fa-pause text-sm"></i>';
+                eq.classList.remove('hidden', 'paused');
+            } else {
+                btn.innerHTML = '<i class="fa-solid fa-play text-sm ml-0.5"></i>';
+                eq.classList.add('paused');
+            }
+        }
+
+        function togglePlayPause() {
+            const currentItem = activeQueue[currentTrackIndex];
+            if (!currentItem) {
+                if (activeQueue.length > 0) playMediaFromQueue(0);
+                return;
+            }
+
+            if (currentItem.youtubeId && ytPlayer) {
+                const state = ytPlayer.getPlayerState();
+                if (state === YT.PlayerState.PLAYING) {
+                    ytPlayer.pauseVideo();
+                    isPlaying = false;
+                } else {
+                    ytPlayer.playVideo();
+                    isPlaying = true;
+                }
+            } else if (currentItem.type === 'video') {
+                if (html5Video.paused) {
+                    html5Video.play();
+                    isPlaying = true;
+                } else {
+                    html5Video.pause();
+                    isPlaying = false;
+                }
+            } else {
+                if (audioEngine.paused) {
+                    audioEngine.play();
+                    isPlaying = true;
+                } else {
+                    audioEngine.pause();
+                    isPlaying = false;
+                }
+            }
+            updatePlayPauseUI();
+        }
+
+        function playMediaFromQueue(index) {
+            if (index < 0 || index >= activeQueue.length) return;
+            currentTrackIndex = index;
+            loadAndPlayMedia(activeQueue[currentTrackIndex]);
+        }
+
+        function playNextTrack() {
+            if (activeQueue.length === 0) return;
+            if (isShuffle) {
+                currentTrackIndex = Math.floor(Math.random() * activeQueue.length);
+            } else {
+                currentTrackIndex = (currentTrackIndex + 1) % activeQueue.length;
+            }
+            loadAndPlayMedia(activeQueue[currentTrackIndex]);
+        }
+
+        function playPrevTrack() {
+            if (activeQueue.length === 0) return;
+            currentTrackIndex = (currentTrackIndex - 1 + activeQueue.length) % activeQueue.length;
+            loadAndPlayMedia(activeQueue[currentTrackIndex]);
+        }
+
+        function setupPlaybackControls() {
+            // HTML5 Video time updates
+            html5Video.addEventListener('timeupdate', () => updateProgress(html5Video.currentTime, html5Video.duration));
+            html5Video.addEventListener('ended', playNextTrack);
+
+            // Audio time updates
+            audioEngine.addEventListener('timeupdate', () => updateProgress(audioEngine.currentTime, audioEngine.duration));
+            audioEngine.addEventListener('ended', playNextTrack);
+
+            // YouTube time polling interval
+            setInterval(() => {
+                const currentItem = activeQueue[currentTrackIndex];
+                if (currentItem && currentItem.youtubeId && ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
+                    updateProgress(ytPlayer.getCurrentTime(), ytPlayer.getDuration());
+                }
+            }, 500);
+
+            document.getElementById('progressBar').addEventListener('input', (e) => {
+                const currentItem = activeQueue[currentTrackIndex];
+                if (!currentItem) return;
+
+                if (currentItem.youtubeId && ytPlayer) {
+                    const dur = ytPlayer.getDuration();
+                    if (dur) ytPlayer.seekTo((e.target.value / 100) * dur, true);
+                } else if (currentItem.type === 'video' && html5Video.duration) {
+                    html5Video.currentTime = (e.target.value / 100) * html5Video.duration;
+                } else if (audioEngine.duration) {
+                    audioEngine.currentTime = (e.target.value / 100) * audioEngine.duration;
+                }
+            });
+
+            document.getElementById('volumeBar').addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                html5Video.volume = val;
+                audioEngine.volume = val;
+                if (ytPlayer && typeof ytPlayer.setVolume === 'function') {
+                    ytPlayer.setVolume(val * 100);
+                }
+            });
+        }
+
+        /* WEB FULLSCREEN API IMPLEMENTATION */
+        function toggleFullscreen() {
+            const vp = document.getElementById('playerViewport');
+            const fsElement = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+
+            if (!fsElement) {
+                if (vp.requestFullscreen) {
+                    vp.requestFullscreen();
+                } else if (vp.webkitRequestFullscreen) {
+                    vp.webkitRequestFullscreen();
+                } else if (vp.msRequestFullscreen) {
+                    vp.msRequestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+            }
+        }
+
+        function setupFullscreenListeners() {
+            const updateFsIcons = () => {
+                const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+                
+                // Update Dock Button
+                document.getElementById('dockFsIcon').className = isFs ? "fa-solid fa-compress text-xs" : "fa-solid fa-expand text-xs";
+                document.getElementById('dockFsText').innerText = isFs ? "Exit Fullscreen" : "Fullscreen";
+
+                // Update Viewport Overlay Button
+                document.getElementById('viewportFsIcon').className = isFs ? "fa-solid fa-compress text-xs" : "fa-solid fa-expand text-xs";
+                document.getElementById('viewportFsText').innerText = isFs ? "Exit Fullscreen" : "Fullscreen";
+            };
+
+            document.addEventListener('fullscreenchange', updateFsIcons);
+            document.addEventListener('webkitfullscreenchange', updateFsIcons);
+            document.addEventListener('msfullscreenchange', updateFsIcons);
+        }
+
+        function changePlaybackRate(rate) {
+            const r = parseFloat(rate);
+            html5Video.playbackRate = r;
+            audioEngine.playbackRate = r;
+            if (ytPlayer && typeof ytPlayer.setPlaybackRate === 'function') {
+                ytPlayer.setPlaybackRate(r);
+            }
+        }
+
+        async function togglePictureInPicture() {
+            try {
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                } else if (document.pictureInPictureEnabled && !html5Video.classList.contains('hidden')) {
+                    await html5Video.requestPictureInPicture();
+                }
+            } catch (err) {
+                console.warn("PiP Not Supported:", err);
+            }
+        }
+
+        function setupKeyboardShortcuts() {
+            window.addEventListener('keydown', (e) => {
+                if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    togglePlayPause();
+                } else if (e.code === 'KeyF') {
+                    e.preventDefault();
+                    toggleFullscreen();
+                } else if (e.code === 'KeyM') {
+                    e.preventDefault();
+                    toggleMute();
+                } else if (e.code === 'ArrowRight') {
+                    e.preventDefault();
+                    seekRelative(5);
+                } else if (e.code === 'ArrowLeft') {
+                    e.preventDefault();
+                    seekRelative(-5);
+                }
+            });
+        }
+
+        function seekRelative(seconds) {
+            const currentItem = activeQueue[currentTrackIndex];
+            if (!currentItem) return;
+
+            if (currentItem.youtubeId && ytPlayer) {
+                const curr = ytPlayer.getCurrentTime();
+                ytPlayer.seekTo(curr + seconds, true);
+            } else if (currentItem.type === 'video') {
+                html5Video.currentTime = Math.max(0, html5Video.currentTime + seconds);
+            } else {
+                audioEngine.currentTime = Math.max(0, audioEngine.currentTime + seconds);
+            }
+        }
+
+        function updateProgress(curr, dur) {
+            if (!dur) return;
+            document.getElementById('progressBar').value = (curr / dur) * 100;
+            document.getElementById('currentTimeDisplay').innerText = formatTime(curr);
+            document.getElementById('durationDisplay').innerText = formatTime(dur);
+        }
+
+        function playAllCurrentView() {
+            if (activeQueue.length > 0) {
+                currentTrackIndex = 0;
+                loadAndPlayMedia(activeQueue[0]);
+            }
+        }
+
+        function shuffleAndPlayView() {
+            if (activeQueue.length > 0) {
+                isShuffle = true;
+                document.getElementById('shuffleBtn').classList.add('text-forest-300');
+                currentTrackIndex = Math.floor(Math.random() * activeQueue.length);
+                loadAndPlayMedia(activeQueue[currentTrackIndex]);
+            }
+        }
+
+        function toggleShuffle() {
+            isShuffle = !isShuffle;
+            const btn = document.getElementById('shuffleBtn');
+            btn.className = isShuffle 
+                ? "text-forest-300 transition text-xs" 
+                : "text-ash-400 hover:text-white transition text-xs";
+        }
+
+        function toggleRepeat() {
+            repeatMode = (repeatMode + 1) % 3;
+            const btn = document.getElementById('repeatBtn');
+            if (repeatMode === 0) btn.className = "text-ash-400 hover:text-white transition text-xs";
+            if (repeatMode === 1) btn.className = "text-forest-300 transition text-xs";
+            if (repeatMode === 2) btn.className = "text-forest-200 transition text-xs";
+        }
+
+        function toggleMute() {
+            html5Video.muted = !html5Video.muted;
+            audioEngine.muted = !audioEngine.muted;
+            if (ytPlayer && typeof ytPlayer.isMuted === 'function') {
+                if (ytPlayer.isMuted()) ytPlayer.unMute(); else ytPlayer.mute();
+            }
+            document.getElementById('muteBtn').innerHTML = html5Video.muted 
+                ? '<i class="fa-solid fa-volume-xmark text-red-400"></i>' 
+                : '<i class="fa-solid fa-volume-high"></i>';
+        }
+
+        /* MEDIA CREATION & ADDITION */
+        function switchAddTab(tab) {
+            const fileBtn = document.getElementById('tabFileBtn');
+            const linkBtn = document.getElementById('tabLinkBtn');
+            const fileContent = document.getElementById('tabFileContent');
+            const linkContent = document.getElementById('tabLinkContent');
+
+            if (tab === 'file') {
+                fileBtn.className = "py-2 px-4 text-xs font-semibold border-b-2 border-forest-400 text-forest-300";
+                linkBtn.className = "py-2 px-4 text-xs font-semibold border-b-2 border-transparent text-ash-400 hover:text-white";
+                fileContent.classList.remove('hidden');
+                linkContent.classList.add('hidden');
+            } else {
+                linkBtn.className = "py-2 px-4 text-xs font-semibold border-b-2 border-forest-400 text-forest-300";
+                fileBtn.className = "py-2 px-4 text-xs font-semibold border-b-2 border-transparent text-ash-400 hover:text-white";
+                linkContent.classList.remove('hidden');
+                fileContent.classList.add('hidden');
+            }
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            selectedFileBlob = file;
+            document.getElementById('fileNameText').innerText = file.name;
+            document.getElementById('fileSizeText').innerText = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+            document.getElementById('fileSelectedInfo').classList.remove('hidden');
+        }
+
+        function parseYouTubeVideoId(url) {
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[2].length === 11) ? match[2] : null;
+        }
+
+        async function processAddMedia() {
+            const saveBtn = document.getElementById('saveAddMediaBtn');
+            saveBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Processing...';
+
+            const isFileTab = !document.getElementById('tabFileContent').classList.contains('hidden');
+
+            let newItem = {
+                id: 'media-' + Date.now(),
+                title: 'Untitled Media',
+                artist: 'Unknown Channel/Artist',
+                type: 'video',
+                cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400',
+                isFavorite: false,
+                duration: '3:30',
+                addedAt: Date.now()
+            };
+
+            if (isFileTab) {
+                if (!selectedFileBlob) {
+                    alert("Please select a video or audio file.");
+                    saveBtn.innerHTML = '<i class="fa-solid fa-check text-xs"></i> Add to Library';
+                    return;
+                }
+
+                const rawName = selectedFileBlob.name.replace(/\.[^/.]+$/, "");
+                newItem.title = rawName;
+                newItem.type = selectedFileBlob.type.startsWith('video') ? 'video' : 'music';
+                newItem.blob = selectedFileBlob;
+                newItem.cover = newItem.type === 'video' 
+                    ? 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=400' 
+                    : 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=400';
+            } else {
+                const link = document.getElementById('linkInput').value.trim();
+                const selectedType = document.getElementById('linkTypeSelect').value;
+                if (!link) {
+                    alert("Please enter a valid link.");
+                    saveBtn.innerHTML = '<i class="fa-solid fa-check text-xs"></i> Add to Library';
+                    return;
+                }
+
+                const ytId = parseYouTubeVideoId(link);
+                newItem.type = selectedType;
+                newItem.url = link;
+
+                if (ytId) {
+                    newItem.youtubeId = ytId;
+                    newItem.title = `YouTube Video (${ytId})`;
+                    newItem.cover = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+                } else {
+                    newItem.title = "Web Media Stream";
+                }
+            }
+
+            mediaList.push(newItem);
+            await saveMediaToDB(newItem);
+
+            selectedFileBlob = null;
+            document.getElementById('fileSelectedInfo').classList.add('hidden');
+            document.getElementById('linkInput').value = '';
+            saveBtn.innerHTML = '<i class="fa-solid fa-check text-xs"></i> Add to Library';
+
+            closeModal('addMediaModal');
+            renderSidebar();
+            renderView();
+            updateStorageUsageDisplay();
+        }
+
+        /* METADATA EDITING */
+        function openEditModal(id) {
+            const item = mediaList.find(m => m.id === id);
+            if (!item) return;
+
+            document.getElementById('editMediaId').value = item.id;
+            document.getElementById('editMediaTitle').value = item.title;
+            document.getElementById('editMediaArtist').value = item.artist || '';
+            document.getElementById('editMediaType').value = item.type;
+            document.getElementById('editMediaCover').value = item.cover || '';
+
+            openModal('editMediaModal');
+        }
+
+        async function saveMediaEdit() {
+            const id = document.getElementById('editMediaId').value;
+            const item = mediaList.find(m => m.id === id);
+            if (item) {
+                item.title = document.getElementById('editMediaTitle').value;
+                item.artist = document.getElementById('editMediaArtist').value;
+                item.type = document.getElementById('editMediaType').value;
+                item.cover = document.getElementById('editMediaCover').value;
+
+                await saveMediaToDB(item);
+                closeModal('editMediaModal');
+                renderSidebar();
+                renderView();
+            }
+        }
+
+        async function toggleFavorite(id) {
+            const item = mediaList.find(m => m.id === id);
+            if (item) {
+                item.isFavorite = !item.isFavorite;
+                await saveMediaToDB(item);
+                renderSidebar();
+                renderView();
+            }
+        }
+
+        function toggleFavoriteCurrent() {
+            const curr = activeQueue[currentTrackIndex];
+            if (curr) toggleFavorite(curr.id);
+        }
+
+        async function deleteMedia(id) {
+            if (!confirm("Are you sure you want to delete this media item?")) return;
+
+            mediaList = mediaList.filter(m => m.id !== id);
+            await deleteMediaFromDB(id);
+
+            playlists.forEach(pl => {
+                pl.itemIds = pl.itemIds.filter(itemId => itemId !== id);
+            });
+            await savePlaylistsToDB(playlists);
+
+            renderSidebar();
+            renderView();
+            updateStorageUsageDisplay();
+        }
+
+        /* PLAYLIST MANAGEMENT */
+        async function saveNewPlaylist() {
+            const name = document.getElementById('playlistNameInput').value.trim();
+            const desc = document.getElementById('playlistDescInput').value.trim();
+
+            if (!name) {
+                alert("Playlist name is required.");
+                return;
+            }
+
+            const newPl = {
+                id: 'pl-' + Date.now(),
+                name: name,
+                description: desc,
+                itemIds: []
+            };
+
+            playlists.push(newPl);
+            await savePlaylistsToDB(playlists);
+
+            document.getElementById('playlistNameInput').value = '';
+            document.getElementById('playlistDescInput').value = '';
+            closeModal('addPlaylistModal');
+
+            switchView(newPl.id);
+        }
+
+        async function addMediaToPlaylist(mediaId, playlistId) {
+            const pl = playlists.find(p => p.id === playlistId);
+            if (pl && !pl.itemIds.includes(mediaId)) {
+                pl.itemIds.push(mediaId);
+                await savePlaylistsToDB(playlists);
+                renderSidebar();
+                if (currentView === playlistId) renderView();
+            }
+        }
+
+        async function deleteCurrentPlaylist() {
+            if (['all', 'video', 'music', 'favorites'].includes(currentView)) return;
+            if (!confirm("Are you sure you want to delete this playlist?")) return;
+
+            playlists = playlists.filter(p => p.id !== currentView);
+            await savePlaylistsToDB(playlists);
+
+            switchView('all');
+        }
+
+        /* SYNC & BACKUP EXPORT/IMPORT */
+        async function exportLibraryBackup() {
+            const zip = new JSZip();
+            const exportMediaData = mediaList.map(m => ({
+                id: m.id,
+                title: m.title,
+                artist: m.artist,
+                type: m.type,
+                cover: m.cover,
+                isFavorite: m.isFavorite,
+                duration: m.duration,
+                url: m.url,
+                youtubeId: m.youtubeId,
+                hasBlob: !!m.blob
+            }));
+
+            const backupMeta = {
+                app: "Sylvan Media Player",
+                exportedAt: new Date().toISOString(),
+                playlists: playlists,
+                media: exportMediaData
+            };
+
+            const rootFolder = zip.folder("MEDIA_FILES_BACKUP");
+            rootFolder.file("library_backup.json", JSON.stringify(backupMeta, null, 2));
+
+            for (const item of mediaList) {
+                if (item.blob) {
+                    const ext = item.type === 'video' ? 'mp4' : 'mp3';
+                    rootFolder.file(`${item.id}.${ext}`, item.blob);
+                }
+            }
+
+            const content = await zip.generateAsync({ type: "blob" });
+            const downloadUrl = URL.createObjectURL(content);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `SYLVAN_MEDIA_BACKUP_${Date.now()}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        async function importLibraryBackup(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (file.name.endsWith('.zip')) {
+                const zip = await JSZip.loadAsync(file);
+                const jsonFile = zip.file("MEDIA_FILES_BACKUP/library_backup.json");
+                if (jsonFile) {
+                    const jsonText = await jsonFile.async("text");
+                    const data = JSON.parse(jsonText);
+                    playlists = data.playlists || [];
+
+                    for (const itemMeta of data.media) {
+                        if (itemMeta.hasBlob) {
+                            const ext = itemMeta.type === 'video' ? 'mp4' : 'mp3';
+                            const blobFile = zip.file(`MEDIA_FILES_BACKUP/${itemMeta.id}.${ext}`);
+                            if (blobFile) {
+                                itemMeta.blob = await blobFile.async("blob");
+                            }
+                        }
+                        mediaList.push(itemMeta);
+                        await saveMediaToDB(itemMeta);
+                    }
+                    await savePlaylistsToDB(playlists);
+                    renderSidebar();
+                    renderView();
+                    alert("Media Library Backup restored successfully!");
+                    closeModal('syncModal');
+                }
+            }
+        }
+
+        function updateStorageUsageDisplay() {
+            let totalBytes = 0;
+            mediaList.forEach(m => { if (m.blob) totalBytes += m.blob.size; });
+            const mb = (totalBytes / (1024 * 1024)).toFixed(1);
+            document.getElementById('storageUsedText').innerText = `${mb} MB`;
+        }
+
+        /* MODALS & UTILITY HELPERS */
+        function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        function formatTime(secs) {
+            const m = Math.floor(secs / 60);
+            const s = Math.floor(secs % 60);
+            return `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+    </script>
+</body>
+</html>
